@@ -62,9 +62,14 @@ unzip -v "$OUT/unsigned.apk" | grep -q 'Stored.*resources.arsc' \
     || { echo "ERROR: resources.arsc must be stored uncompressed (Android 11+)" >&2; exit 1; }
 
 echo "== align + sign"
+export KS_PASS=${BW_RELEASE_STORE_PASSWORD:-android}
+export KEY_PASS=${BW_RELEASE_KEY_PASSWORD:-android}
 zipalign -f -p 4 "$OUT/unsigned.apk" "$OUT/aligned.apk"
-apksigner sign --ks "$ROOT/keystore/debug.jks" --ks-pass pass:android --key-pass pass:android \
-    --ks-key-alias androiddebugkey --min-sdk-version $MIN_SDK \
+# Debug key by default. For a release-signed APK set BW_RELEASE_KEYSTORE,
+# BW_RELEASE_STORE_PASSWORD, BW_RELEASE_KEY_ALIAS, BW_RELEASE_KEY_PASSWORD.
+KS=${BW_RELEASE_KEYSTORE:-$ROOT/keystore/debug.jks}
+apksigner sign --ks "$KS" --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
+    --ks-key-alias "${BW_RELEASE_KEY_ALIAS:-androiddebugkey}" --min-sdk-version $MIN_SDK \
     --out "$OUT/KyivBallisticWatch-$VERSION_NAME.apk" "$OUT/aligned.apk"
 apksigner verify --verbose "$OUT/KyivBallisticWatch-$VERSION_NAME.apk" | head -5
 echo "APK: $OUT/KyivBallisticWatch-$VERSION_NAME.apk"
