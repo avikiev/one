@@ -132,7 +132,12 @@ public class MainActivity extends Activity {
         boolean dnd = getSystemService(NotificationManager.class).getCurrentInterruptionFilter()
                 > NotificationManager.INTERRUPTION_FILTER_ALL;
         StringBuilder s = new StringBuilder();
-        s.append(access ? "✅ Доступ до сповіщень є" : "❌ Немає доступу до сповіщень — застосунок нічого не бачить").append('\n');
+        if (!access) s.append("❌ Немає доступу до сповіщень — застосунок нічого не бачить\n");
+        else if (AlertListenerService.connected) s.append("✅ Доступ є, слухач підключений\n");
+        else s.append("⚠️ Доступ є, але слухач ще не підключився (перезапустіть телефон, якщо надовго)\n");
+        long last = new Prefs(this).lastAlarmAt();
+        s.append("Останній сигнал: ").append(last == 0 ? "ще не було"
+                : java.text.DateFormat.getDateTimeInstance().format(new java.util.Date(last))).append('\n');
         s.append(notif ? "✅ Показ сповіщень дозволено" : "⚠️ Показ сповіщень заборонено (звук працюватиме)").append('\n');
         s.append(battery ? "✅ Фонова робота без обмежень" : "⚠️ Оптимізація батареї може «приспати» застосунок").append('\n');
         if (dnd) s.append("ℹ️ Увімкнено «Не турбувати»: перевірте, що будильники дозволені\n");
@@ -165,6 +170,10 @@ public class MainActivity extends Activity {
     }
 
     private boolean hasListenerAccess() {
+        if (Build.VERSION.SDK_INT >= 27) {
+            return getSystemService(NotificationManager.class).isNotificationListenerAccessGranted(
+                    new ComponentName(this, AlertListenerService.class));
+        }
         String flat = Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners");
         ComponentName me = new ComponentName(this, AlertListenerService.class);
         return flat != null && flat.contains(me.flattenToString());

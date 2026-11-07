@@ -117,6 +117,7 @@ public class AlertListenerService extends NotificationListenerService {
         if (sameRecent) return;
         lastAlarmKind = kind;
         lastAlarmAt = now;
+        prefs.setLastAlarmAt(now);
         AlarmPlayer.alarm(this, kind, text);
     }
 

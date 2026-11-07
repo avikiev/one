@@ -11,7 +11,7 @@ import java.util.Locale;
 final class Prefs {
 
     static final String DEFAULT_CHANNEL = "Київське небо";
-    static final String DEFAULT_KYIV_WORDS = "Київ, Києв, столиц";
+    static final String DEFAULT_KYIV_WORDS = "Київ, Києв, Киев, столиц";
     private static final int LOG_LINES = 40;
 
     private final SharedPreferences sp;
@@ -43,6 +43,9 @@ final class Prefs {
                 .putBoolean("max_volume", maxVolume)
                 .apply();
     }
+
+    long lastAlarmAt() { return sp.getLong("last_alarm_at", 0); }
+    void setLastAlarmAt(long t) { sp.edit().putLong("last_alarm_at", t).apply(); }
 
     void setThreatAt(long t) { sp.edit().putLong("threat_at", t).apply(); }
 

@@ -22,10 +22,10 @@ public final class AlertClassifier {
     public enum Kind { NONE, BALLISTIC_THREAT, KYIV_TARGET, ALL_CLEAR }
 
     public static final List<String> DEFAULT_KYIV_WORDS = Collections.unmodifiableList(
-            java.util.Arrays.asList("київ", "києв", "столиц", "kyiv", "kiev"));
+            java.util.Arrays.asList("київ", "києв", "киев", "столиц", "kyiv", "kiev"));
 
     static final String[] BALLISTIC_WORDS = {
-            "балісти", "баллисти", "виход", "пуск", "іскандер", "искандер",
+            "балісти", "баллисти", "виход", "выход", "пуск", "іскандер", "искандер",
             "кинджал", "кинжал", "циркон", "кн-23", "кн23"
     };
 
@@ -39,8 +39,9 @@ public final class AlertClassifier {
             "відбій", "отбой", "загроза минула", "загрозу знято", "загроза знята"
     };
 
-    /** Talking about an expected all-clear is not an all-clear. */
-    static final String[] ALL_CLEAR_EXCEPTIONS = { "очіку", "чекаємо" };
+    /** "Waiting for the all-clear" is neither an all-clear nor a new threat. */
+    static final String[] WAITING_WORDS = { "очіку", "чекаєм", "чекати", "ожида", "ждем", "ждём" };
+    static final String[] ALL_CLEAR_STEMS = { "відбо", "відбій", "отбо" };
 
     private final List<String> kyivWords;
     private final long windowMs;
@@ -65,12 +66,15 @@ public final class AlertClassifier {
         String text = normalize(rawText);
         if (text.isEmpty()) return Kind.NONE;
 
-        if (containsAny(text, ALL_CLEAR_WORDS) && !containsAny(text, ALL_CLEAR_EXCEPTIONS)) {
+        if (containsAny(text, WAITING_WORDS) && containsAny(text, ALL_CLEAR_STEMS)) {
+            return Kind.NONE; // "Очікуємо на відбій по балістиці"
+        }
+        if (containsAny(text, ALL_CLEAR_WORDS)) {
             threatAt = 0;
             return Kind.ALL_CLEAR;
         }
         boolean kyiv = containsAny(text, kyivWords);
-        if (containsAny(text, BALLISTIC_WORDS) && !containsAny(text, ALL_CLEAR_EXCEPTIONS)) {
+        if (containsAny(text, BALLISTIC_WORDS)) {
             threatAt = now;
             return kyiv ? Kind.KYIV_TARGET : Kind.BALLISTIC_THREAT;
         }

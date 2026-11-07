@@ -106,4 +106,28 @@ public class AlertClassifierTest {
         c.classify("балістика", at(3, 0));
         assertEquals(Kind.KYIV_TARGET, c.classify("Курс на Бровари", at(3, 1)));
     }
+
+    @Test
+    public void expectingLaunchesIsAWarningButExpectingAllClearIsNot() {
+        assertEquals(Kind.BALLISTIC_THREAT, fresh().classify("Очікуємо пуски балістики", at(3, 0)));
+        assertEquals(Kind.NONE, fresh().classify("Очікуємо відбій по балістиці", at(3, 0)));
+        assertEquals(Kind.NONE, fresh().classify("Ждем отбой", at(3, 0)));
+    }
+
+    @Test
+    public void russianWording() {
+        AlertClassifier c = fresh();
+        assertEquals(Kind.BALLISTIC_THREAT, c.classify("Возможны выходы баллистики", at(3, 0)));
+        assertEquals(Kind.KYIV_TARGET, c.classify("Цель на Киев", at(3, 1)));
+        assertEquals(Kind.ALL_CLEAR, c.classify("Отбой", at(3, 5)));
+    }
+
+    /** Regression for the earlier Kotlin version: the second wave must alarm again. */
+    @Test
+    public void secondWaveAlarmsAgain() {
+        AlertClassifier c = fresh();
+        assertEquals(Kind.KYIV_TARGET, c.classify("Балістика на Київ", at(3, 0)));
+        assertEquals(Kind.BALLISTIC_THREAT, c.classify("Можливо відбулися ще виходи, увага", at(3, 27)));
+        assertEquals(Kind.KYIV_TARGET, c.classify("2 цілі на Київ", at(3, 29)));
+    }
 }
