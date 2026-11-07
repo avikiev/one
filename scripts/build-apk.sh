@@ -14,8 +14,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PKG=ua.kyiv.ballisticwatch
-VERSION_CODE=1        # keep in sync with app/build.gradle
-VERSION_NAME=0.1.0
+VERSION_CODE=2        # keep in sync with app/build.gradle
+VERSION_NAME=0.1.1
 MIN_SDK=26
 TARGET_SDK=35
 
@@ -49,8 +49,17 @@ java -cp "$OUT/test-classes:$OUT/classes:$LIBS/junit.jar:$LIBS/hamcrest.jar:$API
     org.junit.runner.JUnitCore ua.kyiv.ballisticwatch.AlertClassifierTest
 
 echo "== dex"
-"$DX" --dex --min-sdk-version=$MIN_SDK --output="$OUT/dex/classes.dex" "$OUT/classes"
+# min-sdk 24 -> plain dex 037 without invoke-custom (Android 7+), safe for minSdk 26.
+"$DX" --dex --min-sdk-version=24 --output="$OUT/dex/classes.dex" "$OUT/classes"
+# dx cannot desugar Java lambdas: it emits invoke-custom to LambdaMetafactory,
+# which does not exist on Android. Such an APK fails to install or crashes.
+if grep -q LambdaMetafactory "$OUT/dex/classes.dex"; then
+    echo "ERROR: Java lambdas/method references found; use anonymous classes." >&2
+    exit 1
+fi
 (cd "$OUT/dex" && zip -q -u "$OUT/unsigned.apk" classes.dex)
+unzip -v "$OUT/unsigned.apk" | grep -q 'Stored.*resources.arsc' \
+    || { echo "ERROR: resources.arsc must be stored uncompressed (Android 11+)" >&2; exit 1; }
 
 echo "== align + sign"
 zipalign -f -p 4 "$OUT/unsigned.apk" "$OUT/aligned.apk"

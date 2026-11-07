@@ -24,7 +24,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 /** Single settings/status screen, built in code to keep the project tiny. */
-public class MainActivity extends Activity {
+// No Java lambdas in this project: scripts/build-apk.sh uses dx, which cannot
+// desugar them (Android has no LambdaMetafactory). Clicks go through onClick().
+public class MainActivity extends Activity implements View.OnClickListener {
+
+    private static final int A_LISTENER = 1, A_APP_SETTINGS = 2, A_POST_NOTIF = 3, A_BATTERY = 4,
+            A_SAVE = 5, A_TEST_BALLISTIC = 6, A_TEST_KYIV = 7, A_STOP = 8, A_CHECK = 9, A_CLEAR_LOG = 10;
 
     private TextView status;
     private TextView log;
@@ -60,16 +65,14 @@ public class MainActivity extends Activity {
         status.setTypeface(Typeface.DEFAULT_BOLD);
 
         heading("1. Дозволи");
-        button("Доступ до сповіщень", v -> openListenerSettings());
+        button("Доступ до сповіщень", A_LISTENER);
         text("Якщо перемикач неактивний (Android 13+): Налаштування → Програми → "
                 + "Балістична варта → ⋮ → «Дозволити обмежені налаштування», потім повторіть.");
-        button("Відкрити налаштування застосунку", v -> startActivity(new Intent(
-                Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))));
+        button("Відкрити налаштування застосунку", A_APP_SETTINGS);
         if (Build.VERSION.SDK_INT >= 33) {
-            button("Дозволити показ сповіщень", v ->
-                    requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, 1));
+            button("Дозволити показ сповіщень", A_POST_NOTIF);
         }
-        button("Не обмежувати роботу у фоні (батарея)", v -> requestBatteryExemption());
+        button("Не обмежувати роботу у фоні (батарея)", A_BATTERY);
 
         heading("2. Налаштування");
         enabled = check("Увімкнено", p.enabled());
@@ -83,36 +86,34 @@ public class MainActivity extends Activity {
         alarmSec = edit(String.valueOf(p.alarmSeconds()), InputType.TYPE_CLASS_NUMBER);
         alarmBallistic = check("Сигнал уже на «загроза балістики» (не лише на ціль на Київ)", p.alarmOnBallistic());
         maxVolume = check("Гучність будильника на максимум під час сигналу", p.maxVolume());
-        button("Зберегти", v -> save());
+        button("Зберегти", A_SAVE);
 
         heading("3. Перевірка");
-        button("Тест: загроза балістики", v -> AlarmPlayer.alarm(this,
-                AlertClassifier.Kind.BALLISTIC_THREAT, "Тест: загроза балістики"));
-        button("Тест: ціль на Київ", v -> AlarmPlayer.alarm(this,
-                AlertClassifier.Kind.KYIV_TARGET, "Тест: 2 цілі на Київ"));
-        button("Зупинити звук", v -> {
-            AlarmPlayer.stopSound(this);
-            AlarmPlayer.cancelAlarmNotification(this);
-        });
+        button("Тест: загроза балістики", A_TEST_BALLISTIC);
+        button("Тест: ціль на Київ", A_TEST_KYIV);
+        button("Зупинити звук", A_STOP);
         label("Перевірити фразу (без звуку)");
         testText = edit("Загроза балістики з Брянська", InputType.TYPE_CLASS_TEXT);
-        button("Як застосунок це зрозуміє?", v -> checkPhrase());
+        button("Як застосунок це зрозуміє?", A_CHECK);
         testResult = text("");
 
         heading("Журнал");
         log = text("");
         log.setTypeface(Typeface.MONOSPACE);
-        button("Очистити журнал", v -> { new Prefs(this).clearLog(); refresh(); });
+        button("Очистити журнал", A_CLEAR_LOG);
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
         if (Build.VERSION.SDK_INT >= 35) {
             // Android 15 draws apps edge-to-edge; keep content clear of the bars.
-            scroll.setOnApplyWindowInsetsListener((v, insets) -> {
-                android.graphics.Insets i = insets.getInsets(
-                        WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
-                v.setPadding(i.left, i.top, i.right, i.bottom);
-                return insets;
+            scroll.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                @Override
+                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                    android.graphics.Insets i = insets.getInsets(
+                            WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
+                    v.setPadding(i.left, i.top, i.right, i.bottom);
+                    return insets;
+                }
             });
         }
         setContentView(scroll);
@@ -245,12 +246,42 @@ public class MainActivity extends Activity {
         return c;
     }
 
-    private void button(String s, View.OnClickListener l) {
+    private void button(String s, int action) {
         Button b = new Button(this);
         b.setText(s);
         b.setAllCaps(false);
-        b.setOnClickListener(l);
+        b.setTag(action);
+        b.setOnClickListener(this);
         root.addView(b);
+    }
+
+    @Override
+    public void onClick(View v) {
+        switch ((Integer) v.getTag()) {
+            case A_LISTENER: openListenerSettings(); break;
+            case A_APP_SETTINGS:
+                startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + getPackageName())));
+                break;
+            case A_POST_NOTIF:
+                requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, 1);
+                break;
+            case A_BATTERY: requestBatteryExemption(); break;
+            case A_SAVE: save(); break;
+            case A_TEST_BALLISTIC:
+                AlarmPlayer.alarm(this, AlertClassifier.Kind.BALLISTIC_THREAT, "Тест: загроза балістики");
+                break;
+            case A_TEST_KYIV:
+                AlarmPlayer.alarm(this, AlertClassifier.Kind.KYIV_TARGET, "Тест: 2 цілі на Київ");
+                break;
+            case A_STOP:
+                AlarmPlayer.stopSound(this);
+                AlarmPlayer.cancelAlarmNotification(this);
+                break;
+            case A_CHECK: checkPhrase(); break;
+            case A_CLEAR_LOG: new Prefs(this).clearLog(); refresh(); break;
+            default: break;
+        }
     }
 
     private static int parse(EditText e, int dflt) {
